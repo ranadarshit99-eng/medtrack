@@ -7,7 +7,12 @@ async function request(path, options = {}) {
     });
     if (!res.ok) {
         let detail = res.statusText;
-        try { detail = (await res.json()).detail ?? detail; } catch { /* ignore */ }
+        try {
+          const body = await res.json();
+          if (body && body.detail) detail = body.detail;
+    }   catch (e) {
+      // ignore
+    }
         throw new Error(detail);
     }
     if (res.status === 204) return null;
