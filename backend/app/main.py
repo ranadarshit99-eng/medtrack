@@ -25,19 +25,32 @@ from .models import (
     MedicineBatchCreate, MedicineBatchUpdate,
 )
 
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
 app = FastAPI(title="MedTrack API", version="1.0.0")
+
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://med-track-git-main-ranadarshit99-engs-projects.vercel.app",
+]
+env_origins = os.getenv("ALLOWED_ORIGINS")
+if env_origins:
+    allowed_origins.extend([origin.strip() for origin in env_origins.split(",") if origin.strip()])
+
+env_origin_regex = os.getenv("ALLOWED_ORIGIN_REGEX")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://med-track-git-main-ranadarshit99-engs-projects.vercel.app",
-    ],
+    allow_origins=allowed_origins,
+    allow_origin_regex=env_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 # ---------------------------------------------------------------- helpers --
@@ -1015,4 +1028,18 @@ def add_patient_history_record(payload: PatientHistoryRecordCreate):
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+# Serve static frontend files in production if built
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
+if os.path.exists(frontend_dist):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+    
+    # Catch-all route to serve index.html for any frontend route
+    @app.get("/{catchall:path}")
+    def serve_frontend(catchall: str):
+        if catchall.startswith("api"):
+            raise HTTPException(status_code=404)
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
+
 
