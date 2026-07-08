@@ -1,0 +1,84 @@
+{
+    "disease_trend": {
+        "best_model": "Random Forest",
+        "mae": 1.8858043279941912,
+        "feature_columns": [
+            "Health_Center_ID",
+            "Disease_Name",
+            "month",
+            "day_of_week",
+            "day_of_year",
+            "is_weekend",
+            "Temperature",
+            "Rainfall",
+            "Festival_Holiday",
+            "hist_disease_p_avg"
+        ],
+        "categorical_columns": [
+            "Disease_Name",
+            "Health_Center_ID"
+        ],
+        "last_updated": "2026-07-07T22:17:52.622331"
+    },
+    "patient_footfall": {
+        "best_model": "Random Forest",
+        "mae": 10.87936238569749,
+        "feature_columns": [
+            "Health_Center_ID",
+            "Total_Beds",
+            "month",
+            "day_of_week",
+            "day_of_year",
+            "is_weekend",
+            "Temperature",
+            "Rainfall",
+            "Festival_Holiday",
+            "hist_patients_avg"
+        ],
+        "categorical_columns": [
+            "Health_Center_ID"
+        ],
+        "last_updated": "2026-07-07T22:17:53.301564"
+    },
+    "medicine_demand": {
+        "best_model": "Random Forest",
+        "mae": 5.870820092684806,
+        "feature_columns": [
+            "Health_Center_ID",
+            "Medicine_Name",
+            "month",
+            "day_of_week",
+            "day_of_year",
+            "is_weekend",
+            "Temperature",
+            "Rainfall",
+            "Festival_Holiday",
+            "hist_med_avg"
+        ],
+        "categorical_columns": [
+            "Medicine_Name",
+            "Health_Center_ID"
+        ],
+        "last_updated": "2026-07-07T22:17:59.643574"
+    },
+    "bed_occupancy": {
+        "best_model": "Random Forest",
+        "mae": 3.9122565761424655,
+        "feature_columns": [
+            "Health_Center_ID",
+            "Total_Beds",
+            "month",
+            "day_of_week",
+            "day_of_year",
+            "is_weekend",
+            "Temperature",
+            "Rainfall",
+            "Festival_Holiday",
+            "hist_beds_avg"
+        ],
+        "categorical_columns": [
+            "Health_Center_ID"
+        ],
+        "last_updated": "2026-07-07T22:18:00.332582"
+    }
+}

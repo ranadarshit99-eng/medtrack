@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body { overflow: hidden; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Chart.js canvases need an explicit sizing parent; Tailwind alone can't
+   express "fill this flex box" reliably across browsers for <canvas>. */
+.chart-wrap { position: relative; width: 100%; height: 100%; }
+
+@layer components {
+  .stat-glow {
+    @apply absolute -top-5 -right-5 w-24 h-24 rounded-full blur-3xl opacity-15;
+  }
+  .btn {
+    @apply inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-semibold cursor-pointer border border-transparent transition-all;
+  }
+  .btn-primary { @apply bg-accent text-white hover:bg-accent-hover hover:shadow-[0_4px_20px_rgba(16,185,129,0.25)]; }
+  .btn-secondary { @apply bg-bg-card text-text-primary border-border hover:border-accent hover:text-accent; }
+  .btn-danger { @apply bg-danger/20 text-danger hover:bg-danger hover:text-white; }
+  .btn-sm { @apply px-3 py-1.5 text-xs; }
+
+  .badge { @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold; }
+  .badge-low { @apply bg-danger/20 text-danger; }
+  .badge-mid { @apply bg-warning/20 text-warning; }
+  .badge-high { @apply bg-accent/15 text-accent; }
+  .badge-pending { @apply bg-warning/20 text-warning; }
+  .badge-registered { @apply bg-accent/15 text-accent; }
+
+  .form-input {
+    @apply bg-bg-secondary border border-border rounded-lg px-3.5 py-2.5 text-text-primary text-sm w-full outline-none transition-colors focus:border-accent;
+  }
+  .form-label { @apply text-[13px] font-semibold text-text-secondary mb-1.5 block; }
+  .form-select {
+    @apply bg-bg-secondary border border-border rounded-lg px-3.5 py-2.5 text-text-primary text-sm w-full outline-none cursor-pointer appearance-none focus:border-accent;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b82a6' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+  }
+
+  .stat-card { @apply bg-bg-card border border-border rounded-2xl px-6 py-5 relative overflow-hidden transition-all hover:border-border-light hover:-translate-y-0.5; }
+  .data-card { @apply bg-bg-card border border-border rounded-2xl overflow-hidden transition-all hover:border-border-light; }
+  .data-card-header { @apply px-5 py-4 border-b border-border flex items-center justify-between gap-2; }
+
+  .data-table { @apply w-full border-collapse; }
+  .data-table th { @apply px-4 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wide border-b border-border bg-bg-secondary; }
+  .data-table td { @apply px-4 py-3 text-sm border-b border-border text-text-secondary; }
+  .data-table tr:hover td { @apply bg-accent/[0.03]; }
+  .data-table tr:last-child td { @apply border-b-0; }
+
+  .nav-item { @apply flex items-center px-5 py-2.5 mx-2.5 my-0.5 rounded-lg cursor-pointer transition-all text-text-secondary text-sm font-medium relative hover:bg-bg-card hover:text-text-primary; }
+  .nav-item.active { @apply bg-gradient-to-br from-accent/15 to-accent/5 text-accent border border-accent/20; }
+
+  .tab-btn { @apply px-[18px] py-2 rounded-lg text-[13px] font-semibold cursor-pointer transition-all text-text-secondary bg-transparent border border-transparent hover:text-text-primary; }
+  .tab-btn.active { @apply bg-accent/10 text-accent border-accent/20; }
+
+  .hc-card { @apply bg-bg-card border border-border rounded-xl px-5 py-[18px] transition-all cursor-pointer hover:border-border-light hover:-translate-y-0.5; }
+  .bed-ctrl { @apply w-8 h-8 rounded-lg flex items-center justify-center bg-bg-secondary border border-border cursor-pointer text-text-secondary transition-all hover:border-accent hover:text-accent; }
+  .stock-bar { @apply h-1.5 bg-bg-secondary rounded-full overflow-hidden; }
+  .stock-bar-fill { @apply h-full rounded-full transition-all duration-500; }
+
+  .reg-banner { @apply bg-gradient-to-br from-warning/10 to-warning/[0.03] border border-warning/25 rounded-2xl p-6; }
+}
