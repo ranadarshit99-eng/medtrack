@@ -34,7 +34,7 @@ app = FastAPI(title="MedTrack API", version="1.0.0")
 allowed_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://med-track-git-main-ranadarshit99-engs-projects.vercel.app",
+    "https://medtrack-gii-main-ranadarshit99-engs-projects.vercel.app/",
 ]
 env_origins = os.getenv("ALLOWED_ORIGINS")
 if env_origins:
