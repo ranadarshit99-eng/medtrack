@@ -1,12 +1,22 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { api } from '../api/client';
 import { useFetch } from '../hooks';
 import { useApp } from '../context/AppContext';
 import { stockStatus, STOCK_HEX } from '../utils';
 
 export default function HealthCenters() {
-  const { searchQuery, showToast, openModal, closeModal, refreshNotifications, notifications } = useApp();
+  const { searchQuery, showToast, openModal, closeModal, refreshNotifications, notifications, selectedHCId, setSelectedHCId } = useApp();
   const { data: allHCs, loading, refetch } = useFetch(() => api.listHealthCenters(false), []);
+
+  useEffect(() => {
+    if (selectedHCId && allHCs) {
+      const hc = allHCs.find((h) => h.id === selectedHCId);
+      if (hc) {
+        showDetail(hc);
+      }
+      setSelectedHCId(null);
+    }
+  }, [selectedHCId, allHCs]);
 
   const q = searchQuery.toLowerCase();
   const reg = useMemo(() => (allHCs || [])
@@ -36,7 +46,7 @@ export default function HealthCenters() {
     await Promise.all([refetch(), refreshNotifications()]);
   };
 
-  const showDetail = (h) => {
+  function showDetail(h) {
     const free = h.beds.total - h.beds.occupied;
     openModal(
       <div>

@@ -72,6 +72,7 @@ function BookingModal({ bed, hcId, onClose, onSuccess }) {
   const [gender, setGender] = useState('Male');
   const [disease, setDisease] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -100,6 +101,19 @@ function BookingModal({ bed, hcId, onClose, onSuccess }) {
       onSuccess();
     } catch (err) {
       showToast(err.message || 'Failed to book bed', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteBed = async () => {
+    setSubmitting(true);
+    try {
+      await api.deleteBed(hcId, bed.id);
+      showToast(`Bed ${bed.number} deleted successfully`);
+      onSuccess();
+    } catch (err) {
+      showToast(err.message || 'Failed to delete bed', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -205,22 +219,54 @@ function BookingModal({ bed, hcId, onClose, onSuccess }) {
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t border-border mt-6">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={onClose}
-            disabled={submitting}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="btn btn-primary animate-none"
-            disabled={submitting}
-          >
-            {submitting ? 'Booking...' : 'Book Bed'}
-          </button>
+        <div className="flex justify-between pt-4 border-t border-border mt-6">
+          {confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-muted font-semibold">Delete bed?</span>
+              <button
+                type="button"
+                className="btn btn-danger py-1 px-2 text-xs"
+                onClick={handleDeleteBed}
+                disabled={submitting}
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary py-1 px-2 text-xs"
+                onClick={() => setConfirmDelete(false)}
+                disabled={submitting}
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-danger flex items-center gap-1.5"
+              onClick={() => setConfirmDelete(true)}
+              disabled={submitting}
+            >
+              <i className="fas fa-trash-alt" /> Delete Bed
+            </button>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onClose}
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary animate-none"
+              disabled={submitting}
+            >
+              {submitting ? 'Booking...' : 'Book Bed'}
+            </button>
+          </div>
         </div>
       </form>
     </div>
@@ -326,6 +372,28 @@ export default function BedsUser({ hc, refetch }) {
     setOccInput(hc.beds.occupied);
     setTotalInput(hc.beds.total);
   }, [hc.beds.occupied, hc.beds.total]);
+
+  const [newBedSector, setNewBedSector] = useState('General');
+  const [newBedNumber, setNewBedNumber] = useState('');
+  const [submittingBed, setSubmittingBed] = useState(false);
+
+  const handleAddBed = async (e) => {
+    e.preventDefault();
+    setSubmittingBed(true);
+    try {
+      await api.addBed(hc.id, {
+        sector: newBedSector,
+        number: newBedNumber.trim() || null,
+      });
+      showToast(`Successfully added a new ${newBedSector} Bed ${newBedNumber.trim() ? newBedNumber.trim() : ''}`);
+      setNewBedNumber('');
+      refetch();
+    } catch (err) {
+      showToast(err.message || 'Failed to add bed', 'error');
+    } finally {
+      setSubmittingBed(false);
+    }
+  };
 
   const patchBeds = async (payload) => {
     await api.updateBeds(hc.id, payload);
@@ -502,6 +570,45 @@ export default function BedsUser({ hc, refetch }) {
                 <div className="stock-bar-fill rounded-full" style={{ width: `${pct}%`, background: color }} />
               </div>
             </div>
+
+            <hr className="border-border my-4" />
+            
+            <form onSubmit={handleAddBed} className="space-y-3">
+              <span className="font-bold text-[14px] font-display block">Add Specific Bed</span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Type / Category</label>
+                  <select
+                    className="form-select w-full"
+                    value={newBedSector}
+                    onChange={(e) => setNewBedSector(e.target.value)}
+                    disabled={submittingBed}
+                  >
+                    <option value="General">General</option>
+                    <option value="ICU">ICU</option>
+                    <option value="Operation">Operation</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Bed Number (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-input w-full"
+                    placeholder="e.g. G10, ICU5"
+                    value={newBedNumber}
+                    onChange={(e) => setNewBedNumber(e.target.value)}
+                    disabled={submittingBed}
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="btn btn-accent w-full animate-none flex items-center justify-center gap-1.5"
+                disabled={submittingBed}
+              >
+                <i className="fas fa-plus" /> {submittingBed ? 'Adding...' : 'Add Bed'}
+              </button>
+            </form>
           </div>
         </div>
       </div>

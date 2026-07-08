@@ -15,7 +15,7 @@ const inferCode = (msg) => {
 };
 
 export default function NotifPanel() {
-  const { notifications, refreshNotifications, navigateTo, role, showToast, openModal, closeModal } = useApp();
+  const { notifications, refreshNotifications, navigateTo, role, showToast, openModal, closeModal, setSelectedHCId } = useApp();
 
   const markAllRead = async () => {
     await api.markAllRead();
@@ -26,7 +26,10 @@ export default function NotifPanel() {
   const handleClick = async (n) => {
     await api.markRead(n.id);
     await refreshNotifications();
-    if (n.type === 'alert') {
+    if (role === 'admin' && n.hc_id) {
+      setSelectedHCId(n.hc_id);
+      navigateTo('health-centers');
+    } else if (n.type === 'alert') {
       const cleanMsg = n.message.replace(/^\[.*?\]\s*/, '');
       const code = inferCode(cleanMsg);
       openModal(

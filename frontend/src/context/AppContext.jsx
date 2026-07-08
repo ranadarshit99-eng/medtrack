@@ -15,6 +15,7 @@ export function AppProvider({ children }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false); // fixes: original hamburger did nothing on mobile
+  const [selectedHCId, setSelectedHCId] = useState(null);
 
   const refreshNotifications = useCallback(async () => {
     try {
@@ -65,6 +66,7 @@ export function AppProvider({ children }) {
     notifications, refreshNotifications, notifOpen, setNotifOpen, unreadCount,
     sidebarCollapsed, setSidebarCollapsed,
     mobileNavOpen, setMobileNavOpen,
+    selectedHCId, setSelectedHCId,
     userHCId: USER_HC_ID,
   };
 

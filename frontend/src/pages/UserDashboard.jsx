@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { StatCard } from '../components/UI';
 import { stockStatus, STOCK_HEX, STOCK_BADGE_CLASS, STOCK_LABEL } from '../utils';
 import { chartColors, donutOptions } from '../charts/setup';
-import AIHCPanel from '../components/AIHCPanel';
+import AIInsightsPanel from '../components/AIInsightsPanel';
 
 export default function UserDashboard({ hc, navigateTo }) {
   const { navigateTo: nav } = useApp();
@@ -35,7 +35,7 @@ export default function UserDashboard({ hc, navigateTo }) {
       )}
 
       {/* AI Prediction & Alerts Panel — HC-scoped */}
-      {hc.registered && <AIHCPanel hcId={hc.id} hcName={hc.name} />}
+      {hc.registered && <AIInsightsPanel hcId={hc.id} totalBeds={hc.beds.total} hc={hc} />}
 
       <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         <StatCard label="Total Beds" value={hc.beds.total} icon="fa-bed" iconBg="rgba(37,99,235,0.15)" iconColor={chartColors.info} glowColor={chartColors.info} />

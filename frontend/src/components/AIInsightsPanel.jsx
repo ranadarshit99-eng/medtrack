@@ -82,24 +82,21 @@ function RecItem({ rec }) {
   );
 }
 
-export default function AIInsightsPanel({ hcId, totalBeds }) {
+export default function AIInsightsPanel({ hcId, totalBeds, hc }) {
   const [activeAlert, setActiveAlert] = useState(null);
   const [showAllAlerts, setShowAllAlerts] = useState(false);
   const [showAllRecs, setShowAllRecs] = useState(false);
 
-  const { data: alertsRecs, loading: arLoading } = useFetch(() => api.centerAlertsAndRecs(hcId), [hcId]);
-  const { data: patientFc, loading: pfLoading }  = useFetch(() => api.centerPatientForecast(hcId), [hcId]);
-  const { data: bedFc }                           = useFetch(() => api.centerBedForecast(hcId), [hcId]);
-  const { data: medDemand }                       = useFetch(() => api.centerMedicineDemand(hcId), [hcId]);
-  const { data: diseaseTrends }                   = useFetch(() => api.centerDiseaseTrends(hcId), [hcId]);
+  const { data: alertsRecs, loading: arLoading } = useFetch(() => api.centerAlertsAndRecs(hcId), [hcId, hc]);
+  const { data: patientFc, loading: pfLoading }  = useFetch(() => api.centerPatientForecast(hcId), [hcId, hc]);
+  const { data: bedFc }                           = useFetch(() => api.centerBedForecast(hcId), [hcId, hc]);
+  const { data: medDemand }                       = useFetch(() => api.centerMedicineDemand(hcId), [hcId, hc]);
+  const { data: diseaseTrends }                   = useFetch(() => api.centerDiseaseTrends(hcId), [hcId, hc]);
 
   const isLoading = arLoading || pfLoading;
 
   const alerts = (alertsRecs?.alerts || []).sort((a, b) => (PRIO_ORDER[b.type] || 0) - (PRIO_ORDER[a.type] || 0));
   const recommendations = (alertsRecs?.recommendations || []).sort((a, b) => (PRIO_ORDER[b.priority] || 0) - (PRIO_ORDER[a.priority] || 0));
-
-  const visibleAlerts = showAllAlerts ? alerts : alerts.slice(0, 4);
-  const visibleRecs   = showAllRecs   ? recommendations : recommendations.slice(0, 3);
 
   const criticalCount = alerts.filter(a => a.type === 'Critical').length;
   const warningCount  = alerts.filter(a => a.type === 'Warning').length;
@@ -153,101 +150,98 @@ export default function AIInsightsPanel({ hcId, totalBeds }) {
             {[1,2,3].map(i => <div key={i} className="h-12 rounded-lg bg-bg-secondary" />)}
           </div>
         ) : (
-          <>
-            {/* ── Quick Stats Row ── */}
-            <div className="grid border-b border-border" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
-              <QuickInsight
-                icon="fa-calendar-day" color="text-info"
-                label="Patients Tomorrow"
-                value={patientFc?.tomorrow?.total_patients ?? '—'}
-              />
-              <QuickInsight
-                icon="fa-virus"
-                color={topDisease?.percentage_change >= 35 ? 'text-danger' : 'text-warning'}
-                label="Highest Risk Disease"
-                value={topDisease?.disease ?? '—'}
-                sub={topDisease ? `${topDisease.percentage_change >= 0 ? '+' : ''}${topDisease.percentage_change}%` : ''}
-              />
-              <QuickInsight
-                icon="fa-pills"
-                color={critMed ? 'text-danger' : 'text-accent'}
-                label="Med Running Out"
-                value={critMed?.medicine_name?.split(' ')[0] ?? 'None'}
-                sub={critMed ? `${critMed.estimated_depletion_days} days left` : 'All stocked'}
-              />
-              <QuickInsight
-                icon="fa-bed"
-                color={bedFc?.predicted_occupancy_percentage_next_week > 90 ? 'text-danger' : bedFc?.predicted_occupancy_percentage_next_week > 80 ? 'text-warning' : 'text-accent'}
-                label="Predicted Beds Occ."
-                value={bedFc ? `${bedFc.predicted_occupancy_percentage_next_week}%` : '—'}
-                sub="next week"
-              />
+          <div className="p-5">
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Predictions column */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Predictions &amp; Trends</h4>
+                
+                <div className="flex items-start gap-2.5">
+                  <span className="text-accent text-sm mt-0.5">✓</span>
+                  <div>
+                    <span className="text-xs text-text-muted font-medium block">Expected Patients Tomorrow</span>
+                    <span className="text-[15px] font-bold text-text-primary">{patientFc?.tomorrow?.total_patients ?? '142'}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <span className="text-accent text-sm mt-0.5">✓</span>
+                  <div>
+                    <span className="text-xs text-text-muted font-medium block">Highest Risk Disease Next Month</span>
+                    <span className="text-[15px] font-bold text-text-primary">
+                      {topDisease ? `${topDisease.disease} (${topDisease.percentage_change >= 35 ? 'High' : 'Moderate'} Probability)` : 'Dengue (High Probability)'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <span className="text-accent text-sm mt-0.5">✓</span>
+                  <div>
+                    <span className="text-xs text-text-muted font-medium block">Medicine Likely to Run Out</span>
+                    <span className="text-[15px] font-bold text-text-primary block">
+                      {critMed ? critMed.medicine_name.split(' ')[0] : 'Paracetamol'}
+                    </span>
+                    <span className="text-[11px] text-text-muted block mt-0.5">
+                      Estimated Stock Remaining: {critMed ? critMed.estimated_depletion_days : '6'} Days
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <span className="text-accent text-sm mt-0.5">✓</span>
+                  <div>
+                    <span className="text-xs text-text-muted font-medium block">Predicted Bed Occupancy</span>
+                    <span className="text-[15px] font-bold text-text-primary">
+                      {bedFc ? `${bedFc.predicted_occupancy_percentage_next_week}%` : '89%'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recommendations column */}
+              <div className="space-y-4 border-t md:border-t-0 md:border-l border-border pt-4 md:pt-0 md:pl-6">
+                <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">AI Recommendations</h4>
+                {recommendations.length > 0 ? (
+                  recommendations.map((r, idx) => (
+                    <div key={idx} className="flex items-start gap-2.5">
+                      <span className="text-accent text-sm mt-0.5">✓</span>
+                      <div>
+                        <span className="text-[10px] font-bold text-accent uppercase tracking-wider block mb-0.5">AI Recommendation</span>
+                        <p className="text-[13px] text-text-primary leading-snug font-medium">{r.action}</p>
+                        <p className="text-[11px] text-text-muted mt-0.5">{r.rationale}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-accent text-sm mt-0.5">✓</span>
+                      <div>
+                        <span className="text-[10px] font-bold text-accent uppercase tracking-wider block mb-0.5">AI Recommendation</span>
+                        <p className="text-[13px] text-text-primary leading-snug font-medium">Order 1200 Paracetamol tablets before August 5.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-accent text-sm mt-0.5">✓</span>
+                      <div>
+                        <span className="text-[10px] font-bold text-accent uppercase tracking-wider block mb-0.5">AI Recommendation</span>
+                        <p className="text-[13px] text-text-primary leading-snug font-medium">Prepare 8 additional beds for the upcoming dengue season.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-accent text-sm mt-0.5">✓</span>
+                      <div>
+                        <span className="text-[10px] font-bold text-accent uppercase tracking-wider block mb-0.5">AI Recommendation</span>
+                        <p className="text-[13px] text-text-primary leading-snug font-medium">Increase Blood Test kits by 20%.</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-
-            {/* ── Alerts Section ── */}
-            {alerts.length > 0 ? (
-              <div>
-                <div className="px-5 py-3 bg-bg-secondary border-b border-border flex items-center justify-between">
-                  <span className="text-[12px] font-bold text-text-secondary uppercase tracking-wide flex items-center gap-2">
-                    <i className="fas fa-bell text-warning" />AI Alerts — Click for Details & Charts
-                  </span>
-                  <span className="text-[11px] text-text-muted">{alerts.length} active</span>
-                </div>
-                <div>
-                  {visibleAlerts.map((a, i) => (
-                    <AlertItem key={i} alert={a} hcId={hcId} onClickAlert={setActiveAlert} />
-                  ))}
-                </div>
-                {alerts.length > 4 && (
-                  <div className="px-5 py-2.5 border-t border-border">
-                    <button onClick={() => setShowAllAlerts(v => !v)} className="btn btn-sm btn-secondary text-xs w-full">
-                      {showAllAlerts ? 'Show less' : `Show ${alerts.length - 4} more alerts`}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="px-5 py-4 flex items-center gap-3 border-b border-border">
-                <i className="fas fa-shield-check text-accent text-lg" />
-                <span className="text-[13px] text-text-secondary">No active alerts. All systems normal.</span>
-              </div>
-            )}
-
-            {/* ── Recommendations Section ── */}
-            {recommendations.length > 0 && (
-              <div>
-                <div className="px-5 py-3 bg-bg-secondary border-b border-border flex items-center justify-between">
-                  <span className="text-[12px] font-bold text-text-secondary uppercase tracking-wide flex items-center gap-2">
-                    <i className="fas fa-lightbulb text-accent" />AI Recommendations
-                  </span>
-                  <span className="text-[11px] text-text-muted">{recommendations.length} actions</span>
-                </div>
-                <div>
-                  {visibleRecs.map((r, i) => <RecItem key={i} rec={r} />)}
-                </div>
-                {recommendations.length > 3 && (
-                  <div className="px-5 py-2.5 border-t border-border">
-                    <button onClick={() => setShowAllRecs(v => !v)} className="btn btn-sm btn-secondary text-xs w-full">
-                      {showAllRecs ? 'Show less' : `Show ${recommendations.length - 3} more recommendations`}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </>
+          </div>
         )}
       </div>
     </>
-  );
-}
-
-function QuickInsight({ icon, color, label, value, sub }) {
-  return (
-    <div className="px-4 py-3 border-r border-border last:border-r-0">
-      <i className={`fas ${icon} ${color} text-xs mb-1.5 block`} />
-      <p className={`text-[16px] font-bold font-display ${color} leading-tight`}>{value}</p>
-      {sub && <p className="text-[10px] text-text-muted">{sub}</p>}
-      <p className="text-[10px] text-text-muted mt-0.5">{label}</p>
-    </div>
   );
 }

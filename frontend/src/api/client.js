@@ -1,17 +1,17 @@
-const BASE = '/api';
+const BASE = `${import.meta.env.VITE_API_URL || ''}/api`;
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  if (!res.ok) {
-    let detail = res.statusText;
-    try { detail = (await res.json()).detail ?? detail; } catch { /* ignore */ }
-    throw new Error(detail);
-  }
-  if (res.status === 204) return null;
-  return res.json();
+    const res = await fetch(`${BASE}${path}`, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+    });
+    if (!res.ok) {
+        let detail = res.statusText;
+        try { detail = (await res.json()).detail ? ? detail; } catch { /* ignore */ }
+        throw new Error(detail);
+    }
+    if (res.status === 204) return null;
+    return res.json();
 }
 
 const get = (path) => request(path);
@@ -20,24 +20,30 @@ const patch = (path, body) => request(path, { method: 'PATCH', body: JSON.string
 const del = (path) => request(path, { method: 'DELETE' });
 
 export const api = {
-  login: (role) => post('/auth/login', { role }),
-  meta: () => get('/meta'),
+        login: (role) => post('/auth/login', { role }),
+        meta: () => get('/meta'),
 
-  listHealthCenters: (registeredOnly = true, q = '') =>
-    get(`/health-centers?registered_only=${registeredOnly}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+        listHealthCenters: (registeredOnly = true, q = '') =>
+            get(`/health-centers?registered_only=${registeredOnly}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
   getHealthCenter: (id) => get(`/health-centers/${id}`),
   requestRegistration: (id) => post(`/health-centers/${id}/register-request`),
   acceptHealthCenter: (id) => post(`/health-centers/${id}/accept`),
   rejectHealthCenter: (id) => post(`/health-centers/${id}/reject`),
+  restoreDemoCenter: () => post('/health-centers/restore-demo'),
 
   updateBeds: (id, payload) => patch(`/health-centers/${id}/beds`, payload),
   allocateBed: (id, bedId, payload) => post(`/health-centers/${id}/beds/${bedId}/allocate`, payload),
   releaseBed: (id, bedId) => post(`/health-centers/${id}/beds/${bedId}/release`),
+  addBed: (id, payload) => post(`/health-centers/${id}/beds`, payload),
+  deleteBed: (id, bedId) => del(`/health-centers/${id}/beds/${bedId}`),
 
   addMedicine: (id, payload) => post(`/health-centers/${id}/medicines`, payload),
   updateMedicine: (id, medId, payload) => patch(`/health-centers/${id}/medicines/${medId}`, payload),
   adjustStock: (id, medId, delta) => post(`/health-centers/${id}/medicines/${medId}/stock-delta`, { delta }),
   deleteMedicine: (id, medId) => del(`/health-centers/${id}/medicines/${medId}`),
+  addMedicineBatch: (id, medId, payload) => post(`/health-centers/${id}/medicines/${medId}/batches`, payload),
+  updateMedicineBatch: (id, medId, batchId, payload) => patch(`/health-centers/${id}/medicines/${medId}/batches/${batchId}`, payload),
+  deleteMedicineBatch: (id, medId, batchId) => del(`/health-centers/${id}/medicines/${medId}/batches/${batchId}`),
 
   addTest: (id, name) => post(`/health-centers/${id}/tests`, { name }),
   removeTest: (id, name) => del(`/health-centers/${id}/tests/${encodeURIComponent(name)}`),
@@ -72,5 +78,9 @@ export const api = {
 
   // Medicine Historical analytics API
   medicineHistory: (medName, hcId = null) => get(`/analytics/medicine-history?medicine_name=${encodeURIComponent(medName)}${hcId ? `&hc_id=${hcId}` : ''}`),
-};
 
+  // Patient History APIs
+  listPatientHistory: (hcId = null, q = '') =>
+    get(`/patient-history?${hcId ? `hc_id=${hcId}&` : ''}q=${encodeURIComponent(q)}`),
+  addPatientHistoryRecord: (payload) => post('/patient-history', payload),
+};

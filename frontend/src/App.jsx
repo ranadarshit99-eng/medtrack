@@ -21,6 +21,7 @@ import TestsAdmin from './pages/TestsAdmin';
 import TestsUser from './pages/TestsUser';
 import Doctors from './pages/Doctors';
 import Register from './pages/Register';
+import PatientHistory from './pages/PatientHistory';
 
 export default function App() {
   const { role } = useApp();
@@ -57,6 +58,7 @@ function AdminPage({ page }) {
     case 'medicine': return <MedicineAdmin />;
     case 'beds': return <BedsAdmin />;
     case 'analytics': return <AnalyticsAdmin />;
+    case 'patient-history': return <PatientHistory />;
     case 'alerts': return <Alerts />;
     case 'tests': return <TestsAdmin />;
     default: return <AdminDashboard />;
@@ -70,6 +72,7 @@ function UserPage({ page, hc, refetch }) {
     case 'medicine': return <MedicineUser hc={hc} refetch={refetch} />;
     case 'beds': return <BedsUser hc={hc} refetch={refetch} />;
     case 'analytics': return <AnalyticsUser hc={hc} refetch={refetch} />;
+    case 'patient-history': return <PatientHistory hc={hc} />;
     case 'tests': return <TestsUser hc={hc} refetch={refetch} />;
     case 'doctors': return <Doctors hc={hc} refetch={refetch} />;
     case 'register': return <Register hc={hc} refetch={refetch} />;

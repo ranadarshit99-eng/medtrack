@@ -92,10 +92,10 @@ class HealthcarePredictor:
                 self.features[task] = json.load(f)
                 
         # Load baselines
-        self.baselines["disease"] = joblib.load(os.path.join(MODEL_DIR, "disease_baselines.joblib"))
-        self.baselines["footfall"] = joblib.load(os.path.join(MODEL_DIR, "footfall_baselines.joblib"))
-        self.baselines["medicine"] = joblib.load(os.path.join(MODEL_DIR, "medicine_baselines.joblib"))
-        self.baselines["beds"] = joblib.load(os.path.join(MODEL_DIR, "beds_baselines.joblib"))
+        self.baselines["disease"] = pd.read_csv(os.path.join(MODEL_DIR, "disease_baselines.csv"))
+        self.baselines["footfall"] = pd.read_csv(os.path.join(MODEL_DIR, "footfall_baselines.csv"))
+        self.baselines["medicine"] = pd.read_csv(os.path.join(MODEL_DIR, "medicine_baselines.csv"))
+        self.baselines["beds"] = pd.read_csv(os.path.join(MODEL_DIR, "beds_baselines.csv"))
         
         # Load pipeline metadata
         meta_path = os.path.join(MODEL_DIR, "pipeline_metadata.json")
@@ -383,13 +383,30 @@ class HealthcarePredictor:
             med_name = med["medicine_name"]
             depletion_days = med["estimated_depletion_days"]
             reorder_qty = med["recommended_reorder_quantity"]
+            curr_stock = med["current_stock"]
+            max_stock = med["max_stock"]
+            
+            clean_med_name = med_name
+            for suffix in [" 500mg", " 5mg", " 250mg", " 400mg", " Syrup", " Sachets", " 10mg"]:
+                clean_med_name = clean_med_name.replace(suffix, "")
+            clean_med_name = clean_med_name.strip()
             
             if depletion_days is not None and depletion_days <= 10:
+                # Calculate target date: date.today() + depletion_days - 3 days
+                order_by_date = (date.today() + timedelta(days=max(1, depletion_days - 3)))
+                order_by_str = order_by_date.strftime("%B %d").replace(" 0", " ") # e.g. "August 5"
+                
+                unit = "tablets"
+                if "syrup" in med_name.lower():
+                    unit = "bottles"
+                elif "sachets" in med_name.lower() or "ors" in med_name.lower():
+                    unit = "packets"
+                
                 # High priority order recommendation
                 recommendations.append({
                     "type": "order",
-                    "priority": "High" if depletion_days <= 5 else "Medium",
-                    "action": f"Order {reorder_qty} units of {med_name} for {hc_name}.",
+                    "priority": "High" if depletion_days <= 3 else "Medium",
+                    "action": f"Order {reorder_qty} {clean_med_name} {unit} before {order_by_str}.",
                     "rationale": f"Stock is critically low and predicted to deplete in {depletion_days} days due to forecasted consumption."
                 })
                 
@@ -414,30 +431,33 @@ class HealthcarePredictor:
         # 2. Bed Occupancy Recommendations
         bed_pred = self.predict_bed_occupancy(hc_id, total_beds, current_occupied)
         predicted_occ_pct = bed_pred["predicted_occupancy_percentage_next_week"]
-        if predicted_occ_pct > 90.0:
+        
+        disease_trends = self.predict_disease_trends(hc_id, days=30)
+        dengue_outbreak = any(d["disease"] == "Dengue" and d["percentage_change"] >= 35.0 for d in disease_trends["summary"])
+        
+        if predicted_occ_pct > 95.0:
             extra_beds = int(total_beds * 0.15)
+            action_msg = f"Prepare {extra_beds} additional beds for the upcoming dengue season." if dengue_outbreak else f"Prepare {extra_beds} extra beds at {hc_name}."
             recommendations.append({
                 "type": "infrastructure",
                 "priority": "High",
-                "action": f"Prepare {extra_beds} extra beds at {hc_name}.",
-                "rationale": f"Bed occupancy is predicted to reach {predicted_occ_pct}% next week, exceeding critical threshold (90%)."
+                "action": action_msg,
+                "rationale": f"Bed occupancy is predicted to reach {predicted_occ_pct}% next week, exceeding critical threshold (95%)."
             })
         elif predicted_occ_pct > 80.0:
             extra_beds = int(total_beds * 0.1)
+            action_msg = f"Prepare {extra_beds} additional beds for the upcoming dengue season." if dengue_outbreak else f"Prepare {extra_beds} extra beds at {hc_name}."
             recommendations.append({
                 "type": "infrastructure",
                 "priority": "Medium",
-                "action": f"Prepare {extra_beds} extra beds at {hc_name}.",
+                "action": action_msg,
                 "rationale": f"Bed occupancy is predicted to reach {predicted_occ_pct}% next week."
             })
             
         # 3. Doctor/Staff Deployment Recommendations
         footfall_pred = self.predict_patient_footfall(hc_id, total_beds)
-        next_week_footfall = footfall_pred["next_week"]["total_patients"]
         next_week_avg_daily = footfall_pred["next_week"]["daily_average"]
         
-        # Estimate ratio: patients per doctor. If it exceeds 15, recommend deploying doctors
-        # Calculate historical footfall
         if self.loaded:
             curr_month = date.today().month
             base_ff = self.baselines["footfall"]
@@ -455,7 +475,6 @@ class HealthcarePredictor:
             })
             
         # 4. Outbreak-specific Medical Supplies
-        disease_trends = self.predict_disease_trends(hc_id, days=30)
         for d in disease_trends["summary"]:
             disease = d["disease"]
             pct_change = d["percentage_change"]
@@ -465,7 +484,7 @@ class HealthcarePredictor:
                     recommendations.append({
                         "type": "supplies",
                         "priority": "High",
-                        "action": f"Increase Blood Test kits and Dengue NS1 / Malaria antigen diagnostic kits at {hc_name}.",
+                        "action": "Increase Blood Test kits by 20%.",
                         "rationale": f"{disease} cases are predicted to spike by {pct_change}% next month due to monsoon weather trends."
                     })
                 elif disease == "Stomach Issues":
@@ -476,6 +495,15 @@ class HealthcarePredictor:
                         "rationale": f"Stomach disease cases are expected to increase by {pct_change}%."
                     })
                     
+        # 5. Routine / Normal Priority Recommendations
+        if not any(r["priority"] == "High" for r in recommendations):
+            recommendations.append({
+                "type": "routine",
+                "priority": "Low",
+                "action": "Perform routine inspection of medicine batch expiry dates.",
+                "rationale": "Recommended preventive task for health center inventory maintenance."
+            })
+            
         return recommendations
 
     # 6. AI Alerts
@@ -488,27 +516,63 @@ class HealthcarePredictor:
         for med in med_demand:
             name = med["medicine_name"]
             depletion_days = med["estimated_depletion_days"]
-            if depletion_days is not None and depletion_days <= 7:
+            curr_stock = med["current_stock"]
+            max_stock = med["max_stock"]
+            
+            clean_name = name
+            for suffix in [" 500mg", " 5mg", " 250mg", " 400mg", " Syrup", " Sachets", " 10mg"]:
+                clean_name = clean_name.replace(suffix, "")
+            clean_name = clean_name.strip()
+            
+            if depletion_days is not None:
+                if depletion_days <= 3:
+                    alerts.append({
+                        "hc_id": hc_id,
+                        "hc_name": hc_name,
+                        "type": "Critical",
+                        "title": f"Medicine stock depletion: {clean_name}",
+                        "message": f"Medicine stock for {clean_name} is expected to finish within {depletion_days} days.",
+                        "code": "MED_DEPLETION"
+                    })
+                elif depletion_days <= 10:
+                    alerts.append({
+                        "hc_id": hc_id,
+                        "hc_name": hc_name,
+                        "type": "Warning",
+                        "title": f"Medicine stock below threshold: {clean_name}",
+                        "message": f"Medicine stock for {clean_name} is below threshold. Estimated Stock Remaining: {depletion_days} Days.",
+                        "code": "MED_DEPLETION_WARN"
+                    })
+            elif curr_stock <= 0.2 * max_stock:
                 alerts.append({
                     "hc_id": hc_id,
                     "hc_name": hc_name,
-                    "type": "Critical",
-                    "title": f"Medicine stock depletion: {name}",
-                    "message": f"Medicine stock for {name} is expected to finish within {depletion_days} days. Rerouting or fresh order required.",
-                    "code": "MED_DEPLETION"
+                    "type": "Warning",
+                    "title": f"Medicine stock below threshold: {clean_name}",
+                    "message": f"Medicine stock for {clean_name} ({curr_stock}/{max_stock}) is below threshold.",
+                    "code": "MED_THRESHOLD"
                 })
                 
         # 2. Bed Occupancy Alerts
         bed_pred = self.predict_bed_occupancy(hc_id, total_beds, current_occupied)
         predicted_occ_pct = bed_pred["predicted_occupancy_percentage_next_week"]
-        if predicted_occ_pct > 90.0:
+        if predicted_occ_pct > 95.0:
             alerts.append({
                 "hc_id": hc_id,
                 "hc_name": hc_name,
                 "type": "Critical",
                 "title": "Critical Bed Occupancy Predicted",
-                "message": f"Bed occupancy is predicted to rise above 90% ({round(predicted_occ_pct)}%) in the upcoming week.",
+                "message": f"Bed occupancy is predicted to rise above 95% ({round(predicted_occ_pct)}%) in the upcoming week.",
                 "code": "BED_OVERFLOW"
+            })
+        elif predicted_occ_pct > 80.0:
+            alerts.append({
+                "hc_id": hc_id,
+                "hc_name": hc_name,
+                "type": "Warning",
+                "title": "High Bed Occupancy Predicted",
+                "message": f"Bed occupancy is predicted to rise above 80% ({round(predicted_occ_pct)}%) in the upcoming week.",
+                "code": "BED_HIGH"
             })
             
         # 3. Disease Outbreaks Alerts
@@ -520,10 +584,19 @@ class HealthcarePredictor:
                 alerts.append({
                     "hc_id": hc_id,
                     "hc_name": hc_name,
-                    "type": "Warning",
+                    "type": "Critical",
                     "title": f"Predicted Disease Outbreak: {disease}",
                     "message": f"{disease} cases expected to increase by {round(pct_change)}% next month. Prepare preventive measures.",
                     "code": f"OUTBREAK_{disease.upper().replace(' ', '_')}"
+                })
+            elif pct_change >= 10.0:
+                alerts.append({
+                    "hc_id": hc_id,
+                    "hc_name": hc_name,
+                    "type": "Normal",
+                    "title": f"Seasonal Trend: {disease}",
+                    "message": f"Seasonal trend detected: {disease} cases expected to rise by {round(pct_change)}% next month.",
+                    "code": f"SEASONAL_{disease.upper().replace(' ', '_')}"
                 })
                 
         # 4. Patient Load Alerts
@@ -537,16 +610,29 @@ class HealthcarePredictor:
         else:
             hist_daily_avg = 25.0
             
-        if next_week_avg_daily > 1.4 * hist_daily_avg:
+        if next_week_avg_daily > hist_daily_avg:
             alerts.append({
                 "hc_id": hc_id,
                 "hc_name": hc_name,
                 "type": "Warning",
                 "title": "Patient Load Warning",
-                "message": f"Patient load is expected to exceed the historical average by {round(((next_week_avg_daily - hist_daily_avg)/hist_daily_avg)*100)}% next week.",
+                "message": f"Patient footfall is expected to increase by {round(((next_week_avg_daily - hist_daily_avg)/hist_daily_avg)*100)}% next week.",
                 "code": "PATIENT_SURGE"
             })
             
+        # 5. Routine / Normal Priority alerts for recommendations
+        recs = self.generate_recommendations(hc_id, hc_name, total_beds, current_occupied, current_medicines_stock)
+        for r in recs:
+            if r["priority"] == "Low":
+                alerts.append({
+                    "hc_id": hc_id,
+                    "hc_name": hc_name,
+                    "type": "Normal",
+                    "title": "Routine Recommendation",
+                    "message": r["action"],
+                    "code": f"REC_{r['type'].upper()}"
+                })
+                
         return alerts
 
 predictor = HealthcarePredictor()

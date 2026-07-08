@@ -119,12 +119,64 @@ def gen_yearly(years: int) -> list[dict]:
 def make_medicines() -> list[dict]:
     meds = []
     for idx, (name, cat) in enumerate(MEDICINES_CATALOG):
+        # Expiring details relative to July 2026
+        if idx == 1:
+            expiry = "2026-08-10" # Expiring soon
+        elif idx == 3:
+            expiry = "2026-06-15" # Already expired
+        elif idx == 5:
+            expiry = "2026-09-20" # Expiring soon
+        else:
+            expiry = f"2027-{random.randint(1,12):02d}-{random.randint(1,28):02d}"
+            
+        mfg_year = 2024 if idx % 2 == 0 else 2025
+        mfg = f"{mfg_year}-{random.randint(1,12):02d}-{random.randint(1,28):02d}"
+        
+        last_arrived = round(random.random() * 80 + 20)
+        arrival = f"2026-{random.randint(4,6):02d}-{random.randint(1,28):02d}"
+        
         stock = round(random.random() * 180 + 5)
         if idx == 0:
             stock = round(random.random() * 15 + 2)   # force a low-stock example
         elif idx == 2:
             stock = round(random.random() * 30 + 5)   # force a mid-stock example
-        meds.append({"id": _next_id(), "name": name, "category": cat, "stock": stock, "max_stock": 200})
+            
+        batches = []
+        batches.append({
+            "id": f"b_{idx}_1",
+            "mfg_date": mfg,
+            "expiry_date": expiry,
+            "arrival_date": arrival,
+            "initial_quantity": last_arrived,
+            "current_quantity": min(stock, last_arrived)
+        })
+        
+        remaining = stock - min(stock, last_arrived)
+        if remaining > 0 or idx % 3 == 0:
+            qty2 = remaining if remaining > 0 else 40
+            batches.append({
+                "id": f"b_{idx}_2",
+                "mfg_date": "2025-01-10",
+                "expiry_date": "2026-08-10" if idx == 0 else "2027-01-10",
+                "arrival_date": "2025-02-15",
+                "initial_quantity": qty2 + 20,
+                "current_quantity": qty2
+            })
+            
+        total_stock = sum(b["current_quantity"] for b in batches)
+        
+        meds.append({
+            "id": _next_id(),
+            "name": name,
+            "category": cat,
+            "stock": total_stock,
+            "max_stock": 200,
+            "expiry_date": expiry,
+            "mfg_date": mfg,
+            "last_stock_arrived": last_arrived,
+            "last_arrival_date": arrival,
+            "batches": batches
+        })
     return meds
 
 
@@ -217,7 +269,10 @@ class Store:
     def __init__(self):
         self.health_centers: dict[int, dict] = {}
         self.notifications: list[dict] = []
+        self.read_notif_ids: set[int] = set()
         self._notif_id = count(1)
+        self._patient_rec_id = count(1021)
+        self.patient_history: list[dict] = []
         self._seed()
 
     def _seed(self):
@@ -244,8 +299,412 @@ class Store:
              "from": "Saraswati Nagar CHC", "date": "1 day ago", "read": True, "hc_id": 2},
         ]
 
+        # Populate read_notif_ids
+        for n in self.notifications:
+            if n.get("read", False):
+                self.read_notif_ids.add(n["id"])
+
+        self.patient_history = [
+            {
+                "id": "REC-1001",
+                "patient_name": "Aarav Mehta",
+                "patient_age": 45,
+                "patient_gender": "Male",
+                "disease": "Hypertension",
+                "health_center_id": 1,
+                "health_center_name": "Rajendra Nagar PHC",
+                "admitted": True,
+                "admission_details": {
+                    "sector": "General",
+                    "bed_number": "G3",
+                    "admission_date": "2026-04-10",
+                    "discharge_date": "2026-04-15",
+                    "stay_days": 5
+                },
+                "medicines": [
+                    {"name": "Amlodipine 5mg", "quantity": "30 tablets"},
+                    {"name": "ORS Sachets", "quantity": "5 packets"}
+                ],
+                "doctor_name": "Dr. Priya Sharma",
+                "visit_date": "2026-04-10"
+            },
+            {
+                "id": "REC-1002",
+                "patient_name": "Sneha Patel",
+                "patient_age": 29,
+                "patient_gender": "Female",
+                "disease": "Stomach Issues",
+                "health_center_id": 1,
+                "health_center_name": "Rajendra Nagar PHC",
+                "admitted": False,
+                "admission_details": None,
+                "medicines": [
+                    {"name": "Omeprazole 20mg", "quantity": "14 tablets"},
+                    {"name": "Antacid Tablets", "quantity": "20 tablets"}
+                ],
+                "doctor_name": "Dr. Vikram Singh",
+                "visit_date": "2026-04-12"
+            },
+            {
+                "id": "REC-1003",
+                "patient_name": "Ishaan Sharma",
+                "patient_age": 8,
+                "patient_gender": "Male",
+                "disease": "Fever",
+                "health_center_id": 2,
+                "health_center_name": "Saraswati Nagar CHC",
+                "admitted": True,
+                "admission_details": {
+                    "sector": "General",
+                    "bed_number": "G1",
+                    "admission_date": "2026-05-02",
+                    "discharge_date": "2026-05-05",
+                    "stay_days": 3
+                },
+                "medicines": [
+                    {"name": "Paracetamol 500mg", "quantity": "10 tablets"},
+                    {"name": "Cough Syrup", "quantity": "1 bottle"}
+                ],
+                "doctor_name": "Dr. Rahul Verma",
+                "visit_date": "2026-05-02"
+            },
+            {
+                "id": "REC-1004",
+                "patient_name": "Priya Rao",
+                "patient_age": 34,
+                "patient_gender": "Female",
+                "disease": "Cold/Cough",
+                "health_center_id": 2,
+                "health_center_name": "Saraswati Nagar CHC",
+                "admitted": False,
+                "admission_details": None,
+                "medicines": [
+                    {"name": "Cetirizine 10mg", "quantity": "10 tablets"},
+                    {"name": "Cough Syrup", "quantity": "1 bottle"}
+                ],
+                "doctor_name": "Dr. Rahul Verma",
+                "visit_date": "2026-05-04"
+            },
+            {
+                "id": "REC-1005",
+                "patient_name": "Rajesh Kumar",
+                "patient_age": 62,
+                "patient_gender": "Male",
+                "disease": "Joint Pain",
+                "health_center_id": 3,
+                "health_center_name": "Gandhi Marg PHC",
+                "admitted": False,
+                "admission_details": None,
+                "medicines": [
+                    {"name": "Ibuprofen 400mg", "quantity": "20 tablets"}
+                ],
+                "doctor_name": "Dr. Suresh Kumar",
+                "visit_date": "2026-03-20"
+            },
+            {
+                "id": "REC-1006",
+                "patient_name": "Sunita Devi",
+                "patient_age": 55,
+                "patient_gender": "Female",
+                "disease": "Diabetes",
+                "health_center_id": 4,
+                "health_center_name": "Lakshmi Purva CHC",
+                "admitted": True,
+                "admission_details": {
+                    "sector": "ICU",
+                    "bed_number": "ICU1",
+                    "admission_date": "2026-03-12",
+                    "discharge_date": "2026-03-19",
+                    "stay_days": 7
+                },
+                "medicines": [
+                    {"name": "Metformin 500mg", "quantity": "60 tablets"},
+                    {"name": "ORS Sachets", "quantity": "10 packets"}
+                ],
+                "doctor_name": "Dr. Priya Sharma",
+                "visit_date": "2026-03-12"
+            },
+            {
+                "id": "REC-1007",
+                "patient_name": "Vikram Malhotra",
+                "patient_age": 41,
+                "patient_gender": "Male",
+                "disease": "Skin Problems",
+                "health_center_id": 5,
+                "health_center_name": "New Colony PHC",
+                "admitted": False,
+                "admission_details": None,
+                "medicines": [
+                    {"name": "Cetirizine 10mg", "quantity": "15 tablets"}
+                ],
+                "doctor_name": "Dr. Meera Patel",
+                "visit_date": "2026-04-18"
+            },
+            {
+                "id": "REC-1008",
+                "patient_name": "Ananya Iyer",
+                "patient_age": 27,
+                "patient_gender": "Female",
+                "disease": "Other",
+                "health_center_id": 6,
+                "health_center_name": "Shanti Nagar CHC",
+                "admitted": True,
+                "admission_details": {
+                    "sector": "Operation",
+                    "bed_number": "OP2",
+                    "admission_date": "2026-05-20",
+                    "discharge_date": "2026-05-24",
+                    "stay_days": 4
+                },
+                "medicines": [
+                    {"name": "Vitamin D3 Supplements", "quantity": "30 tablets"}
+                ],
+                "doctor_name": "Dr. Anita Desai",
+                "visit_date": "2026-05-20"
+            },
+            {
+                "id": "REC-1009",
+                "patient_name": "Karan Johar",
+                "patient_age": 50,
+                "patient_gender": "Male",
+                "disease": "Respiratory Issues",
+                "health_center_id": 6,
+                "health_center_name": "Shanti Nagar CHC",
+                "admitted": True,
+                "admission_details": {
+                    "sector": "ICU",
+                    "bed_number": "ICU2",
+                    "admission_date": "2026-02-15",
+                    "discharge_date": "2026-02-24",
+                    "stay_days": 9
+                },
+                "medicines": [
+                    {"name": "Amoxicillin 250mg", "quantity": "15 tablets"},
+                    {"name": "Paracetamol 500mg", "quantity": "10 tablets"}
+                ],
+                "doctor_name": "Dr. Priya Sharma",
+                "visit_date": "2026-02-15"
+            },
+            {
+                "id": "REC-1010",
+                "patient_name": "Meera Nair",
+                "patient_age": 73,
+                "patient_gender": "Female",
+                "disease": "Hypertension",
+                "health_center_id": 6,
+                "health_center_name": "Shanti Nagar CHC",
+                "admitted": True,
+                "admission_details": {
+                    "sector": "General",
+                    "bed_number": "G5",
+                    "admission_date": "2026-04-01",
+                    "discharge_date": "2026-04-07",
+                    "stay_days": 6
+                },
+                "medicines": [
+                    {"name": "Amlodipine 5mg", "quantity": "30 tablets"}
+                ],
+                "doctor_name": "Dr. Priya Sharma",
+                "visit_date": "2026-04-01"
+            },
+            {
+                "id": "REC-1011",
+                "patient_name": "Rohan Das",
+                "patient_age": 19,
+                "patient_gender": "Male",
+                "disease": "Fever",
+                "health_center_id": 6,
+                "health_center_name": "Shanti Nagar CHC",
+                "admitted": True,
+                "admission_details": {
+                    "sector": "General",
+                    "bed_number": "G2",
+                    "admission_date": "2026-06-10",
+                    "discharge_date": "2026-06-14",
+                    "stay_days": 4
+                },
+                "medicines": [
+                    {"name": "Paracetamol 500mg", "quantity": "12 tablets"},
+                    {"name": "ORS Sachets", "quantity": "12 packets"}
+                ],
+                "doctor_name": "Dr. Vikram Singh",
+                "visit_date": "2026-06-10"
+            },
+            {
+                "id": "REC-1012",
+                "patient_name": "Aditi Joshi",
+                "patient_age": 31,
+                "patient_gender": "Female",
+                "disease": "Stomach Issues",
+                "health_center_id": 7,
+                "health_center_name": "Vikas Nagar PHC",
+                "admitted": False,
+                "admission_details": None,
+                "medicines": [
+                    {"name": "ORS Sachets", "quantity": "8 packets"},
+                    {"name": "Omeprazole 20mg", "quantity": "10 tablets"}
+                ],
+                "doctor_name": "Dr. Suresh Kumar",
+                "visit_date": "2026-06-18"
+            },
+            {
+                "id": "REC-1013",
+                "patient_name": "Amit Singhal",
+                "patient_age": 38,
+                "patient_gender": "Male",
+                "disease": "Cold/Cough",
+                "health_center_id": 1,
+                "health_center_name": "Rajendra Nagar PHC",
+                "admitted": False,
+                "admission_details": None,
+                "medicines": [
+                    {"name": "Cetirizine 10mg", "quantity": "10 tablets"},
+                    {"name": "Cough Syrup", "quantity": "1 bottle"}
+                ],
+                "doctor_name": "Dr. Priya Sharma",
+                "visit_date": "2026-06-20"
+            },
+            {
+                "id": "REC-1014",
+                "patient_name": "Sanjay Gupta",
+                "patient_age": 52,
+                "patient_gender": "Male",
+                "disease": "Diabetes",
+                "health_center_id": 2,
+                "health_center_name": "Saraswati Nagar CHC",
+                "admitted": False,
+                "admission_details": None,
+                "medicines": [
+                    {"name": "Metformin 500mg", "quantity": "90 tablets"}
+                ],
+                "doctor_name": "Dr. Rahul Verma",
+                "visit_date": "2026-05-15"
+            },
+            {
+                "id": "REC-1015",
+                "patient_name": "Kavita Rao",
+                "patient_age": 47,
+                "patient_gender": "Female",
+                "disease": "Joint Pain",
+                "health_center_id": 3,
+                "health_center_name": "Gandhi Marg PHC",
+                "admitted": True,
+                "admission_details": {
+                    "sector": "General",
+                    "bed_number": "G1",
+                    "admission_date": "2026-04-22",
+                    "discharge_date": "2026-04-28",
+                    "stay_days": 6
+                },
+                "medicines": [
+                    {"name": "Ibuprofen 400mg", "quantity": "30 tablets"}
+                ],
+                "doctor_name": "Dr. Suresh Kumar",
+                "visit_date": "2026-04-22"
+            },
+            {
+                "id": "REC-1016",
+                "patient_name": "Deepak Chawla",
+                "patient_age": 60,
+                "patient_gender": "Male",
+                "disease": "Hypertension",
+                "health_center_id": 4,
+                "health_center_name": "Lakshmi Purva CHC",
+                "admitted": False,
+                "admission_details": None,
+                "medicines": [
+                    {"name": "Amlodipine 5mg", "quantity": "60 tablets"}
+                ],
+                "doctor_name": "Dr. Priya Sharma",
+                "visit_date": "2026-05-18"
+            },
+            {
+                "id": "REC-1017",
+                "patient_name": "Pooja Hegde",
+                "patient_age": 25,
+                "patient_gender": "Female",
+                "disease": "Fever",
+                "health_center_id": 5,
+                "health_center_name": "New Colony PHC",
+                "admitted": True,
+                "admission_details": {
+                    "sector": "General",
+                    "bed_number": "G4",
+                    "admission_date": "2026-06-01",
+                    "discharge_date": "2026-06-04",
+                    "stay_days": 3
+                },
+                "medicines": [
+                    {"name": "Paracetamol 500mg", "quantity": "15 tablets"},
+                    {"name": "Amoxicillin 250mg", "quantity": "10 tablets"}
+                ],
+                "doctor_name": "Dr. Meera Patel",
+                "visit_date": "2026-06-01"
+            },
+            {
+                "id": "REC-1018",
+                "patient_name": "Arjun Reddy",
+                "patient_age": 33,
+                "patient_gender": "Male",
+                "disease": "Stomach Issues",
+                "health_center_id": 6,
+                "health_center_name": "Shanti Nagar CHC",
+                "admitted": False,
+                "admission_details": None,
+                "medicines": [
+                    {"name": "Omeprazole 20mg", "quantity": "10 tablets"},
+                    {"name": "ORS Sachets", "quantity": "4 packets"}
+                ],
+                "doctor_name": "Dr. Vikram Singh",
+                "visit_date": "2026-06-25"
+            },
+            {
+                "id": "REC-1019",
+                "patient_name": "Neelam Kothari",
+                "patient_age": 68,
+                "patient_gender": "Female",
+                "disease": "Respiratory Issues",
+                "health_center_id": 6,
+                "health_center_name": "Shanti Nagar CHC",
+                "admitted": True,
+                "admission_details": {
+                    "sector": "General",
+                    "bed_number": "G1",
+                    "admission_date": "2026-05-12",
+                    "discharge_date": "2026-05-22",
+                    "stay_days": 10
+                },
+                "medicines": [
+                    {"name": "Amoxicillin 250mg", "quantity": "20 tablets"},
+                    {"name": "Vitamin D3 Supplements", "quantity": "10 tablets"}
+                ],
+                "doctor_name": "Dr. Priya Sharma",
+                "visit_date": "2026-05-12"
+            },
+            {
+                "id": "REC-1020",
+                "patient_name": "Vikram Seth",
+                "patient_age": 55,
+                "patient_gender": "Male",
+                "disease": "Joint Pain",
+                "health_center_id": 7,
+                "health_center_name": "Vikas Nagar PHC",
+                "admitted": False,
+                "admission_details": None,
+                "medicines": [
+                    {"name": "Ibuprofen 400mg", "quantity": "20 tablets"}
+                ],
+                "doctor_name": "Dr. Suresh Kumar",
+                "visit_date": "2026-06-15"
+            }
+        ]
+
     def next_notif_id(self) -> int:
         return next(self._notif_id)
 
+    def next_patient_rec_id(self) -> int:
+        return next(self._patient_rec_id)
+
 
 store = Store()
+

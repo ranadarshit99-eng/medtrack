@@ -7,10 +7,30 @@ export default function TestsAdmin() {
   const { searchQuery } = useApp();
   const { data: allHCs, loading } = useFetch(() => api.listHealthCenters(false), []);
   const q = searchQuery.toLowerCase();
-  const reg = useMemo(() => (allHCs || [])
-    .filter((h) => h.registered)
-    .filter((h) => !q || h.name.toLowerCase().includes(q) || h.location.toLowerCase().includes(q)), [allHCs, q]);
-  const allTests = useMemo(() => [...new Set(reg.flatMap((h) => h.tests))].sort(), [reg]);
+
+  const registeredHCs = useMemo(() => (allHCs || []).filter((h) => h.registered), [allHCs]);
+
+  const reg = useMemo(() => {
+    if (!q) return registeredHCs;
+    return registeredHCs.filter((h) => {
+      const matchesHC = h.name.toLowerCase().includes(q) || h.location.toLowerCase().includes(q);
+      const matchesTest = h.tests.some((t) => t.toLowerCase().includes(q));
+      return matchesHC || matchesTest;
+    });
+  }, [registeredHCs, q]);
+
+  const allTests = useMemo(() => {
+    const baseTests = [...new Set(reg.flatMap((h) => h.tests))].sort();
+    if (!q) return baseTests;
+
+    const allRegisteredTests = [...new Set(registeredHCs.flatMap((h) => h.tests))];
+    const queryMatchesAnyTest = allRegisteredTests.some((t) => t.toLowerCase().includes(q));
+
+    if (queryMatchesAnyTest) {
+      return baseTests.filter((t) => t.toLowerCase().includes(q));
+    }
+    return baseTests;
+  }, [registeredHCs, reg, q]);
 
   if (loading) return <p className="text-text-muted">Loading…</p>;
 

@@ -16,18 +16,24 @@ from .ml.predictor import predictor
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from .data import store, DISEASES, TESTS_CATALOG
+from .data import store, DISEASES, TESTS_CATALOG, make_health_center
 from .models import (
     MedicineCreate, MedicineUpdate, MedicineStockDelta,
     BedsUpdate, TestCreate, DoctorCreate, ScheduleCreate,
     PatientEntryCreate, LoginRequest, BedAllocateRequest,
+    PatientHistoryRecord, PatientHistoryRecordCreate, BedCreate,
+    MedicineBatchCreate, MedicineBatchUpdate,
 )
 
 app = FastAPI(title="MedTrack API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://med-track-git-main-ranadarshit99-engs-projects.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -66,6 +72,9 @@ def login(payload: LoginRequest):
     """Demo auth: role-based only, matching the original prototype's
     'pick a role card' flow. A real deployment would issue a session/JWT
     tied to a specific health-center account here."""
+    if payload.role == "user":
+        if 6 not in store.health_centers:
+            store.health_centers[6] = make_health_center(6, "Shanti Nagar CHC", "Shanti Nagar, Central", 60, False)
     user_hc_id = 6 if payload.role == "user" else None
     return {"role": payload.role, "user_health_center_id": user_hc_id}
 
@@ -127,6 +136,26 @@ def accept_health_center(hc_id: int):
 def reject_health_center(hc_id: int):
     get_hc_or_404(hc_id)
     store.notifications = [n for n in store.notifications if not (n["type"] == "request" and n["hc_id"] == hc_id)]
+    if hc_id in store.health_centers:
+        del store.health_centers[hc_id]
+    return {"ok": True}
+
+
+@app.post("/api/health-centers/restore-demo")
+def restore_demo():
+    if 6 not in store.health_centers:
+        store.health_centers[6] = make_health_center(6, "Shanti Nagar CHC", "Shanti Nagar, Central", 60, False)
+        # Clean any existing notification for 6 and prepend a fresh request
+        store.notifications = [n for n in store.notifications if n.get("hc_id") != 6]
+        store.notifications.insert(0, {
+            "id": store.next_notif_id(),
+            "type": "request",
+            "message": "Shanti Nagar CHC requested to be listed in the district dashboard",
+            "from": "Shanti Nagar CHC",
+            "date": "Just now",
+            "read": False,
+            "hc_id": 6,
+        })
     return {"ok": True}
 
 
@@ -222,13 +251,87 @@ def release_bed(hc_id: int, bed_id: str):
     return bed
 
 
+@app.post("/api/health-centers/{hc_id}/beds")
+def add_bed(hc_id: int, payload: BedCreate):
+    import random
+    hc = get_hc_or_404(hc_id)
+    if "beds_list" not in hc:
+        hc["beds_list"] = []
+        
+    sector = payload.sector
+    if payload.number and payload.number.strip():
+        bed_num = payload.number.strip()
+    else:
+        prefix = "G" if sector == "General" else "ICU" if sector == "ICU" else "OP"
+        existing_nums = [b["number"] for b in hc["beds_list"] if b["sector"] == sector]
+        idx = 1
+        while f"{prefix}{idx}" in existing_nums:
+            idx += 1
+        bed_num = f"{prefix}{idx}"
+        
+    if any(b["number"].lower() == bed_num.lower() for b in hc["beds_list"]):
+        raise HTTPException(400, f"Bed number {bed_num} already exists in this health center")
+        
+    bed_id = f"{hc_id}_{sector}_{bed_num}"
+    while any(b["id"] == bed_id for b in hc["beds_list"]):
+        bed_id = f"{hc_id}_{sector}_{bed_num}_{random.randint(1000, 9999)}"
+        
+    new_bed = {
+        "id": bed_id,
+        "number": bed_num,
+        "sector": sector,
+        "status": "available",
+        "patient_name": None,
+        "patient_age": None,
+        "patient_gender": None,
+        "patient_disease": None,
+        "allocated_at": None
+    }
+    hc["beds_list"].append(new_bed)
+    hc["beds"]["total"] = len(hc["beds_list"])
+    hc["beds"]["occupied"] = sum(1 for b in hc["beds_list"] if b["status"] == "occupied")
+    return new_bed
+
+
+@app.delete("/api/health-centers/{hc_id}/beds/{bed_id}")
+def delete_bed(hc_id: int, bed_id: str):
+    hc = get_hc_or_404(hc_id)
+    if "beds_list" not in hc:
+        hc["beds_list"] = []
+        
+    bed = next((b for b in hc["beds_list"] if b["id"] == bed_id), None)
+    if not bed:
+        raise HTTPException(404, f"Bed {bed_id} not found")
+        
+    if bed["status"] == "occupied":
+        raise HTTPException(400, "Cannot delete an occupied bed. Please discharge the patient first.")
+        
+    hc["beds_list"] = [b for b in hc["beds_list"] if b["id"] != bed_id]
+    hc["beds"]["total"] = len(hc["beds_list"])
+    hc["beds"]["occupied"] = sum(1 for b in hc["beds_list"] if b["status"] == "occupied")
+    return {"ok": True}
+
+
 # -------------------------------------------------------------- medicines --
 @app.post("/api/health-centers/{hc_id}/medicines")
 def add_medicine(hc_id: int, payload: MedicineCreate):
     hc = get_hc_or_404(hc_id)
     if any(m["name"].lower() == payload.name.lower() for m in hc["medicines"]):
         raise HTTPException(400, "Medicine already exists")
-    med = {"id": store.next_notif_id() + 100000, **payload.model_dump()}
+    med = {
+        "id": store.next_notif_id() + 100000, 
+        **payload.model_dump(), 
+        "batches": []
+    }
+    if payload.stock > 0:
+        med["batches"].append({
+            "id": f"b_{med['id']}_initial",
+            "mfg_date": payload.mfg_date or "2025-12-31",
+            "expiry_date": payload.expiry_date or "2027-12-31",
+            "arrival_date": payload.last_arrival_date or "2026-01-01",
+            "initial_quantity": payload.last_stock_arrived or payload.stock,
+            "current_quantity": payload.stock
+        })
     hc["medicines"].append(med)
     return med
 
@@ -237,8 +340,41 @@ def add_medicine(hc_id: int, payload: MedicineCreate):
 def update_medicine(hc_id: int, med_id: int, payload: MedicineUpdate):
     hc = get_hc_or_404(hc_id)
     med = find_medicine_or_404(hc, med_id)
+    
+    # Exclude unset fields
     for field, val in payload.model_dump(exclude_unset=True).items():
-        med[field] = val
+        if field == "stock":
+            # If stock is explicitly updated, adjust the current batches or initial batch
+            delta = val - med["stock"]
+            if delta != 0:
+                if not med.get("batches"):
+                    med["batches"] = []
+                if delta > 0:
+                    if med["batches"]:
+                        med["batches"][-1]["current_quantity"] += delta
+                    else:
+                        med["batches"].append({
+                            "id": f"b_{med_id}_manual",
+                            "mfg_date": med.get("mfg_date") or "2025-12-31",
+                            "expiry_date": med.get("expiry_date") or "2027-12-31",
+                            "arrival_date": med.get("last_arrival_date") or "2026-01-01",
+                            "initial_quantity": delta,
+                            "current_quantity": delta
+                        })
+                else:
+                    remaining = abs(delta)
+                    for b in med["batches"]:
+                        if b["current_quantity"] >= remaining:
+                            b["current_quantity"] -= remaining
+                            remaining = 0
+                            break
+                        else:
+                            remaining -= b["current_quantity"]
+                            b["current_quantity"] = 0
+            med["stock"] = val
+        else:
+            med[field] = val
+            
     if med["stock"] > med["max_stock"]:
         raise HTTPException(400, "stock cannot exceed max_stock")
     return med
@@ -246,10 +382,123 @@ def update_medicine(hc_id: int, med_id: int, payload: MedicineUpdate):
 
 @app.post("/api/health-centers/{hc_id}/medicines/{med_id}/stock-delta")
 def adjust_medicine_stock(hc_id: int, med_id: int, payload: MedicineStockDelta):
+    import datetime
     hc = get_hc_or_404(hc_id)
     med = find_medicine_or_404(hc, med_id)
-    med["stock"] = max(0, min(med["max_stock"], med["stock"] + payload.delta))
+    
+    if "batches" not in med:
+        med["batches"] = []
+        
+    delta = payload.delta
+    if delta > 0:
+        if med["batches"]:
+            med["batches"][-1]["current_quantity"] += delta
+        else:
+            med["batches"].append({
+                "id": f"b_{med_id}_adj",
+                "mfg_date": "2025-12-31",
+                "expiry_date": "2027-12-31",
+                "arrival_date": datetime.date.today().isoformat(),
+                "initial_quantity": delta,
+                "current_quantity": delta
+            })
+    else:
+        remaining = abs(delta)
+        for b in med["batches"]:
+            if b["current_quantity"] >= remaining:
+                b["current_quantity"] -= remaining
+                remaining = 0
+                break
+            else:
+                remaining -= b["current_quantity"]
+                b["current_quantity"] = 0
+                
+    med["stock"] = sum(b["current_quantity"] for b in med["batches"])
     return med
+
+
+@app.post("/api/health-centers/{hc_id}/medicines/{med_id}/batches")
+def add_medicine_batch(hc_id: int, med_id: int, payload: MedicineBatchCreate):
+    import random
+    hc = get_hc_or_404(hc_id)
+    med = find_medicine_or_404(hc, med_id)
+    if "batches" not in med:
+        med["batches"] = []
+    
+    batch_id = f"b_{med_id}_{random.randint(10000, 99999)}"
+    while any(b["id"] == batch_id for b in med["batches"]):
+        batch_id = f"b_{med_id}_{random.randint(10000, 99999)}"
+        
+    batch = {
+        "id": batch_id,
+        "mfg_date": payload.mfg_date,
+        "expiry_date": payload.expiry_date,
+        "arrival_date": payload.arrival_date,
+        "initial_quantity": payload.initial_quantity,
+        "current_quantity": payload.current_quantity
+    }
+    med["batches"].append(batch)
+    
+    # Sync total stock
+    med["stock"] = sum(b["current_quantity"] for b in med["batches"])
+    med["last_stock_arrived"] = payload.initial_quantity
+    med["last_arrival_date"] = payload.arrival_date
+    med["mfg_date"] = payload.mfg_date
+    med["expiry_date"] = payload.expiry_date
+    
+    return batch
+
+
+@app.patch("/api/health-centers/{hc_id}/medicines/{med_id}/batches/{batch_id}")
+def update_medicine_batch(hc_id: int, med_id: int, batch_id: str, payload: MedicineBatchUpdate):
+    hc = get_hc_or_404(hc_id)
+    med = find_medicine_or_404(hc, med_id)
+    if "batches" not in med:
+        med["batches"] = []
+        
+    batch = next((b for b in med["batches"] if b["id"] == batch_id), None)
+    if not batch:
+        raise HTTPException(404, "Batch not found")
+        
+    for field, val in payload.model_dump(exclude_unset=True).items():
+        batch[field] = val
+        
+    med["stock"] = sum(b["current_quantity"] for b in med["batches"])
+    
+    if med["batches"]:
+        latest_batch = med["batches"][-1]
+        med["last_stock_arrived"] = latest_batch["initial_quantity"]
+        med["last_arrival_date"] = latest_batch["arrival_date"]
+        med["mfg_date"] = latest_batch["mfg_date"]
+        med["expiry_date"] = latest_batch["expiry_date"]
+        
+    return batch
+
+
+@app.delete("/api/health-centers/{hc_id}/medicines/{med_id}/batches/{batch_id}")
+def delete_medicine_batch(hc_id: int, med_id: int, batch_id: str):
+    hc = get_hc_or_404(hc_id)
+    med = find_medicine_or_404(hc, med_id)
+    if "batches" not in med:
+        med["batches"] = []
+        
+    batch = next((b for b in med["batches"] if b["id"] == batch_id), None)
+    if not batch:
+        raise HTTPException(404, "Batch not found")
+        
+    med["batches"] = [b for b in med["batches"] if b["id"] != batch_id]
+    med["stock"] = sum(b["current_quantity"] for b in med["batches"])
+    
+    if med["batches"]:
+        latest_batch = med["batches"][-1]
+        med["last_stock_arrived"] = latest_batch["initial_quantity"]
+        med["last_arrival_date"] = latest_batch["arrival_date"]
+        med["mfg_date"] = latest_batch["mfg_date"]
+        med["expiry_date"] = latest_batch["expiry_date"]
+    else:
+        med["last_stock_arrived"] = 0
+        
+    return {"ok": True}
 
 
 @app.delete("/api/health-centers/{hc_id}/medicines/{med_id}")
@@ -703,6 +952,67 @@ def medicine_history(medicine_name: str, hc_id: Optional[int] = Query(default=No
     }
 
 
+@app.get("/api/patient-history", response_model=list[PatientHistoryRecord])
+def list_patient_history(
+    hc_id: Optional[int] = Query(default=None),
+    q: Optional[str] = Query(default=None),
+):
+    results = store.patient_history
+    if hc_id is not None:
+        results = [r for r in results if r["health_center_id"] == hc_id]
+    if q:
+        ql = q.lower()
+        filtered = []
+        for r in results:
+            if (
+                ql in r["patient_name"].lower() or
+                ql in r["disease"].lower() or
+                ql in r["doctor_name"].lower() or
+                ql in r["id"].lower() or
+                any(ql in m["name"].lower() for m in r["medicines"])
+            ):
+                filtered.append(r)
+        results = filtered
+    return results
+
+
+@app.post("/api/patient-history", response_model=PatientHistoryRecord)
+def add_patient_history_record(payload: PatientHistoryRecordCreate):
+    hc = get_hc_or_404(payload.health_center_id)
+    rec_id = f"REC-{store.next_patient_rec_id()}"
+    
+    medicines_list = [{"name": m.name, "quantity": m.quantity} for m in payload.medicines]
+    
+    adm_details = None
+    if payload.admitted and payload.admission_details:
+        adm_details = {
+            "sector": payload.admission_details.sector,
+            "bed_number": payload.admission_details.bed_number,
+            "admission_date": payload.admission_details.admission_date,
+            "discharge_date": payload.admission_details.discharge_date,
+            "stay_days": payload.admission_details.stay_days
+        }
+        
+    new_rec = {
+        "id": rec_id,
+        "patient_name": payload.patient_name,
+        "patient_age": payload.patient_age,
+        "patient_gender": payload.patient_gender,
+        "disease": payload.disease,
+        "health_center_id": payload.health_center_id,
+        "health_center_name": hc["name"],
+        "admitted": payload.admitted,
+        "admission_details": adm_details,
+        "medicines": medicines_list,
+        "doctor_name": payload.doctor_name,
+        "visit_date": payload.visit_date
+    }
+    
+    store.patient_history.insert(0, new_rec)
+    return new_rec
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+

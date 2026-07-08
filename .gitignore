@@ -1,32 +1,33 @@
-# Dependency directories
-node_modules/
-frontend/node_modules/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Build outputs
-dist/
-frontend/dist/
-
-# Virtual environments
-.venv/
-backend/.venv/
+# Environments
+.env
+.venv
+env/
 venv/
 ENV/
-env/
 
-# Python cache & compiled files
-**/__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
+# Node modules
+node_modules/
+dist/
+dist-ssr/
+*.local
 
-# Large datasets (exceeding GitHub's 100MB file limit)
-backend/data/synthetic_healthcare_data.csv
-
-# IDE and OS files
+# IDEs
 .vscode/
 .idea/
-.DS_Store
 *.suo
-*.user
-Thumbs.db
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Data files / large datasets
+backend/data/
+*.csv.gz
+*.zip
+*.tar.gz
+

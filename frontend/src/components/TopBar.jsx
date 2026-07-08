@@ -12,7 +12,7 @@ const TITLES = {
   register: 'Registration',
 };
 
-const SEARCHABLE_PAGES = ['health-centers', 'medicine', 'beds', 'analytics', 'tests'];
+const SEARCHABLE_PAGES = ['health-centers', 'medicine', 'beds', 'tests'];
 
 export default function TopBar() {
   const {
@@ -51,7 +51,7 @@ export default function TopBar() {
           <i className="fas fa-search text-text-muted text-[13px]" />
           <input
             type="text"
-            placeholder="Search health centers..."
+            placeholder={currentPage === 'tests' ? "Search health centers or tests..." : "Search health centers..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="bg-transparent border-none outline-none text-text-primary text-sm w-full placeholder:text-text-muted"

@@ -8,6 +8,7 @@ function navItemsFor(role, unreadCount, userHCRegistered) {
       { id: 'medicine', icon: 'fa-pills', label: 'Medicine Management' },
       { id: 'beds', icon: 'fa-bed', label: 'Bed Management' },
       { id: 'analytics', icon: 'fa-chart-line', label: 'Patient Analytics' },
+      { id: 'patient-history', icon: 'fa-notes-medical', label: 'Patient History' },
       { id: 'alerts', icon: 'fa-bell', label: 'Alerts & Notifications', badge: unreadCount || null },
       { id: 'tests', icon: 'fa-flask', label: 'Test Availability' },
     ];
@@ -17,6 +18,7 @@ function navItemsFor(role, unreadCount, userHCRegistered) {
     { id: 'medicine', icon: 'fa-pills', label: 'Medicine Management' },
     { id: 'beds', icon: 'fa-bed', label: 'Bed Status' },
     { id: 'analytics', icon: 'fa-chart-line', label: 'Patient Analytics' },
+    { id: 'patient-history', icon: 'fa-notes-medical', label: 'Patient History' },
     { id: 'tests', icon: 'fa-flask', label: 'Test Availability' },
     { id: 'doctors', icon: 'fa-calendar-check', label: 'Doctor Schedule' },
     { id: 'register', icon: 'fa-file-circle-plus', label: userHCRegistered ? 'Registration Status' : 'Request to Register' },

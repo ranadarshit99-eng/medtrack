@@ -22,12 +22,26 @@ class Doctor(BaseModel):
     schedule: list[ScheduleSlot] = Field(default_factory=list)
 
 
+class MedicineBatch(BaseModel):
+    id: str
+    mfg_date: str
+    expiry_date: str
+    arrival_date: str
+    initial_quantity: int = Field(ge=0)
+    current_quantity: int = Field(ge=0)
+
+
 class Medicine(BaseModel):
     id: int
     name: str = Field(min_length=1, max_length=120)
     category: str = Field(min_length=1, max_length=60)
     stock: int = Field(ge=0)
     max_stock: int = Field(ge=1)
+    expiry_date: str = Field(default="2027-12-31")
+    mfg_date: str = Field(default="2025-12-31")
+    last_stock_arrived: int = Field(default=100, ge=0)
+    last_arrival_date: str = Field(default="2026-01-01")
+    batches: list[MedicineBatch] = Field(default_factory=list)
 
     @field_validator("stock")
     @classmethod
@@ -65,7 +79,7 @@ class BedDetail(BaseModel):
     sector: Literal["ICU", "General", "Operation"]
     status: Literal["available", "occupied"]
     patient_name: Optional[str] = None
-    patient_age: Optional[int] = None
+    patient_age: Optional[str] = None
     patient_gender: Optional[Literal["Male", "Female", "Other"]] = None
     patient_disease: Optional[str] = None
     allocated_at: Optional[str] = None
@@ -123,6 +137,10 @@ class MedicineCreate(BaseModel):
     category: str = Field(min_length=1, max_length=60)
     stock: int = Field(ge=0)
     max_stock: int = Field(ge=1)
+    expiry_date: Optional[str] = Field(default="2027-12-31")
+    mfg_date: Optional[str] = Field(default="2025-12-31")
+    last_stock_arrived: Optional[int] = Field(default=100, ge=0)
+    last_arrival_date: Optional[str] = Field(default="2026-01-01")
 
 
 class MedicineUpdate(BaseModel):
@@ -130,10 +148,30 @@ class MedicineUpdate(BaseModel):
     category: Optional[str] = Field(default=None, min_length=1, max_length=60)
     stock: Optional[int] = Field(default=None, ge=0)
     max_stock: Optional[int] = Field(default=None, ge=1)
+    expiry_date: Optional[str] = Field(default=None)
+    mfg_date: Optional[str] = Field(default=None)
+    last_stock_arrived: Optional[int] = Field(default=None, ge=0)
+    last_arrival_date: Optional[str] = Field(default=None)
 
 
 class MedicineStockDelta(BaseModel):
     delta: int
+
+
+class MedicineBatchCreate(BaseModel):
+    mfg_date: str
+    expiry_date: str
+    arrival_date: str
+    initial_quantity: int = Field(ge=0)
+    current_quantity: int = Field(ge=0)
+
+
+class MedicineBatchUpdate(BaseModel):
+    mfg_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    arrival_date: Optional[str] = None
+    initial_quantity: Optional[int] = Field(default=None, ge=0)
+    current_quantity: Optional[int] = Field(default=None, ge=0)
 
 
 class BedsUpdate(BaseModel):
@@ -160,6 +198,11 @@ class PatientEntryCreate(BaseModel):
     count: int = Field(ge=1, le=10_000)
 
 
+class BedCreate(BaseModel):
+    sector: Literal["ICU", "General", "Operation"]
+    number: Optional[str] = Field(default=None, max_length=20)
+
+
 class AIRecommendation(BaseModel):
     type: str
     priority: str
@@ -174,4 +217,47 @@ class AIAlert(BaseModel):
     title: str
     message: str
     code: str
+
+
+class PatientMedicine(BaseModel):
+    name: str
+    quantity: str
+
+
+class PatientAdmissionDetail(BaseModel):
+    sector: str
+    bed_number: str
+    admission_date: str
+    discharge_date: str
+    stay_days: int
+
+
+class PatientHistoryRecord(BaseModel):
+    id: str
+    patient_name: str
+    patient_age: int
+    patient_gender: Literal["Male", "Female", "Other"]
+    disease: str
+    health_center_id: int
+    health_center_name: str
+    admitted: bool
+    admission_details: Optional[PatientAdmissionDetail] = None
+    medicines: list[PatientMedicine] = Field(default_factory=list)
+    doctor_name: str
+    visit_date: str
+
+
+class PatientHistoryRecordCreate(BaseModel):
+    patient_name: str = Field(min_length=1, max_length=120)
+    patient_age: int = Field(ge=0, le=130)
+    patient_gender: Literal["Male", "Female", "Other"]
+    disease: str = Field(min_length=1, max_length=120)
+    health_center_id: int
+    admitted: bool
+    admission_details: Optional[PatientAdmissionDetail] = None
+    medicines: list[PatientMedicine] = Field(default_factory=list)
+    doctor_name: str = Field(min_length=1, max_length=120)
+    visit_date: str
+
+
 
